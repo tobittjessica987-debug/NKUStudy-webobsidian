@@ -1,0 +1,4 @@
+# Historical revisions used literal NUL placeholders; keep source diffs reviewable.
+server/src/services/links.ts diff
+server/src/services/renderhtml.ts diff
+web/src/lib/markdown.ts diff

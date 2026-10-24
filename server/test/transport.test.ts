@@ -5,7 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import express from 'express';
 import { WebSocket } from 'ws';
-import { once } from 'node:events';
+import { once, on } from 'node:events';
 const root = await fs.mkdtemp(path.join(os.tmpdir(),'nkustudy-transport-'));
 process.env.DATA_DIR=path.join(root,'data'); process.env.VAULT_PATH=path.join(root,'vault');
 process.env.NODE_ENV='production'; delete process.env.TRUST_PROXY; delete process.env.WEBOBSIDIAN_PASSWORD;
@@ -55,7 +55,14 @@ test('WS-01 owner receives events; revoked session receives no subsequent event'
  const token=await issueToken();
  const ws=new WebSocket(`ws://127.0.0.1:${port}/ws`,{headers:{authorization:'Bearer '+token,origin:base}});
  const messages:string[]=[];ws.on('message',x=>messages.push(x.toString()));await once(ws,'open');
- const event=once(ws,'message');broadcast({type:'fixture-event'});await event;
+ // The initial hello frame can arrive after open; wait for the actual broadcast,
+ // not merely the next frame, so this assertion is independent of socket timing.
+ const event=(async()=>{
+  for await(const [message] of on(ws,'message',{signal:AbortSignal.timeout(5000)})){
+   if(JSON.parse(message.toString()).type==='fixture-event')return;
+  }
+ })();
+ broadcast({type:'fixture-event'});await event;
  assert.ok(messages.some(x=>x.includes('fixture-event')));
  await revokeSessions();const closing=once(ws,'close');broadcast({type:'private-after-revoke'});await closing;
  assert.ok(messages.every(x=>!x.includes('private-after-revoke')));

@@ -2,7 +2,7 @@
 
 日期：2026-10-24。统一开发分支：[`nkustudy-dev`](https://github.com/tobittjessica987-debug/NKUStudy-webobsidian/tree/nkustudy-dev)。
 
-本次从已修复代码整理，不回退到 `feat/qut-fork`，不修改 `main` 或上游。原 4A、4B 工作区、未提交修改和发行包均保留。当前产品源码与 4A 修复一致，本轮新增构建、部署工具、溯源材料及协作说明。
+初始交接提交 `4f8b637` 从已修复代码整理，保留原 4A、4B 工作区与发行包。该提交的产品源码与 4A 一致；后续 PR 会继续修改开发源码与锁文件。下面的 r2 镜像和 108 项源清单是冻结历史身份，不代表后续开发 HEAD 已构建、已部署或与 r2 逐文件相同。
 
 ## 版本与证据
 
@@ -17,7 +17,7 @@
 | HTTPS 部署配置 | `deploy/r3/` 冻结文本；不改变 r2 应用镜像 |
 | 数据卷 | `/vault` 内容、`/data` 设置及运行数据；不是源码或镜像，不纳入 Git |
 
-镜像构建时 Docker 配置尚未提交，因此不能称镜像由本轮新 HEAD 构建。通过 [108 项源清单](provenance/r2-source-manifest.json) 将当时源码、锁文件及构建配置逐文件绑定；本轮已核对全部匹配。image config / manifest / index digest 是不同身份，不能互换。完整值见 release.json。
+镜像构建时 Docker 配置尚未提交，因此不能称镜像由本轮新 HEAD 构建。通过 [108 项源清单](provenance/r2-source-manifest.json) 将当时源码、锁文件及构建配置逐文件绑定；初始交接 `4f8b637` 已核对全部匹配。image config / manifest / index digest 是不同身份，不能互换。完整值见 release.json。
 
 - 源清单 SHA256：`46ad2d97bdc2c2fcb0f9b8811b9424886091ed71a81b9c17924cf62f9990b186`
 - 锁文件 SHA256：`671963de571dfc611e7f370482640455928bde108ed0e7c9383fd633f090d7ed`

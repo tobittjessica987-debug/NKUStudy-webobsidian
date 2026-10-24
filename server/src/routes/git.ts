@@ -4,7 +4,7 @@ import { requireAuth, requireOwner, denyGuest } from '../middleware/auth.js';
 import * as git from '../services/git.js';
 import { COMMIT_PREFIXES, buildCommitMessage, CommitTemplateError } from '../services/commitTemplate.js';
 import { isGithubAppConfigured } from '../services/githubApp.js';
-import { assertGuestWritable, isGuestWritable } from '../services/guestpath.js';
+import { assertGuestWritable, isGuestWritable, assertGuestReadable } from '../services/guestpath.js';
 
 export const gitRouter = Router();
 // 允许 owner 与（公开编辑开启时的）guest；敏感操作再单独 requireOwner。
@@ -37,6 +37,14 @@ gitRouter.get(
   asyncHandler(async (req, res) => {
     const path = String(req.query.path ?? '').trim();
     if (!path) return res.status(400).json({ error: 'path required' });
+    // 访客只查可读范围内文件的历史：私有笔记的提交记录（含已删除内容）不匿名开放
+    if (req.sessionRole === 'guest') {
+      try {
+        await assertGuestReadable(path);
+      } catch (e) {
+        return res.status((e as { status?: number })?.status ?? 403).json({ error: (e as Error).message });
+      }
+    }
     res.json({ commits: await git.log(path) });
   }),
 );
@@ -47,6 +55,13 @@ gitRouter.get(
     const hash = String(req.query.hash ?? '').trim();
     const path = String(req.query.path ?? '').trim();
     if (!hash || !path) return res.status(400).json({ error: 'hash and path required' });
+    if (req.sessionRole === 'guest') {
+      try {
+        await assertGuestReadable(path);
+      } catch (e) {
+        return res.status((e as { status?: number })?.status ?? 403).json({ error: (e as Error).message });
+      }
+    }
     res.json({ content: await git.showFile(hash, path) });
   }),
 );

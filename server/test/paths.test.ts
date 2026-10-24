@@ -23,6 +23,8 @@ const { hashPassword, issueToken } = await import('../src/services/auth.js');
 const { agentRouter } = await import('../src/routes/agent.js');
 const { createKey } = await import('../src/services/apikeys.js');
 const { filesRouter } = await import('../src/routes/files.js');
+const { searchRouter } = await import('../src/routes/search.js');
+const { gitRouter } = await import('../src/routes/git.js');
 const { errorHandler } = await import('../src/middleware/error.js');
 const vault = await import('../src/services/vault.js');
 const { qmd } = await import('../src/services/search.js');
@@ -45,7 +47,7 @@ await updateSettings(async (s) => {
 const owner = await issueToken();
 const git = (...args: string[]) => execFileSync('git', args, { cwd: process.env.VAULT_PATH, encoding: 'utf8', env: { ...process.env, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' } }).trim();
 git('init', '-q', '-b', 'fixture'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid'); git('add', '.'); git('commit', '-qm', 'fixture');
-const app = express(); app.use(express.json()); app.use(cookieParser()); app.use('/api/files', filesRouter); app.use('/api/v1', agentRouter); app.use(errorHandler);
+const app = express(); app.use(express.json()); app.use(cookieParser()); app.use('/api/files', filesRouter); app.use('/api/search', searchRouter); app.use('/api/git', gitRouter); app.use('/api/v1', agentRouter); app.use(errorHandler);
 const server = await new Promise<ReturnType<typeof app.listen>>((resolve) => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
 const base = `http://127.0.0.1:${(server.address() as { port: number }).port}/api/files`;
 async function request(method: string, url: string, body?: unknown, asOwner = false) {
@@ -158,6 +160,40 @@ test('PATH-01–11 canonical object authorization and no side effects', async (t
       try { await assert.rejects(vault.resolveInVault('allowed/unreadable/child.md')); }
       finally { await fs.chmod(path.join(root, 'allowed/unreadable'), 0o700); }
     });
+
+    await t.test('GUEST-READ 访客读收敛：文件树/内容/搜索/历史只落 editableRoot+附件目录', async () => {
+      // 基线：owner 全可见；访客只可见 allowed 子树（fixture 的 editableRoot=content/allowed）
+      const ownerTree = await request('GET', '/', undefined, true);
+      const ownerFiles = JSON.stringify(await ownerTree.json());
+      assert.ok(ownerFiles.includes('private/sentinel.md'));
+      const guestTree = await request('GET', '/');
+      const guestFiles = JSON.stringify(await guestTree.json());
+      assert.ok(!guestFiles.includes('private'), 'guest 文件树不得出现 private 目录');
+      assert.ok(guestFiles.includes('allowed/sentinel.md'), 'guest 文件树仍含 allowed');
+
+      // 内容读取：allowed 200；private 403（此前 200，回归断言）
+      assert.equal((await request('GET', '/content?path=allowed/sentinel.md')).status, 200);
+      assert.equal((await request('GET', '/content?path=private/sentinel.md')).status, 403);
+
+      // git 历史：访客读 allowed 的历史可以，读 private 的历史被拒
+      // git 路由挂载在 /api/git，与 files 的请求端点不同
+      const gitBase = base.replace('/api/files', '/api/git');
+      const logOk = await fetch(gitBase + '/log?path=allowed/sentinel.md');
+      assert.equal(logOk.status, 200);
+      const logDenied = await fetch(gitBase + '/log?path=private/sentinel.md');
+      assert.equal(logDenied.status, 403);
+      const showDenied = await fetch(gitBase + '/show?hash=HEAD&path=private/sentinel.md');
+      assert.ok([400, 403].includes(showDenied.status));
+
+      // 搜索：私有内容不能被命中（fixture 已建索引）；搜索路由挂在 /api/search
+      await settleIndexes(); await qmd.build(); await buildLinkGraph();
+      const searchBase = base.replace('/api/files', '/api/search');
+      const search = await fetch(searchBase + '/search?q=private');
+      const hits = JSON.stringify(await search.json());
+      assert.ok(!hits.includes('private/sentinel.md'), 'guest 搜索不得命中 private 笔记');
+    });
+
+
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await fs.rm(fixture, { recursive: true, force: true });

@@ -431,6 +431,15 @@ Cập nhật lần cuối: 2026-10-08 (QUT fork — 编辑分支自动跟进主�
       `desktop/release`.
 
 ### Nhật ký tiến độ
+- 2026-10-24（公开编辑访客权限收敛 + 安全加固）：①访客读权限从「整个内容根」收敛到
+  `editableRoot` ∪ 附件目录——`GET /api/files`（文件树）、`/content`（含 basename 解析后的嵌入目标）、
+  `/api/search`（search/matches/backlinks/resolve/graph）、`/git/log`、`/git/show` 全部按
+  `guestpath.assertGuestReadable` 过滤，新增 `GUEST-READ` 测试块覆盖；启动警告改为「读写均受限」。
+  ②web 消毒面收敛：rehype-sanitize schema 与 Live Preview 手写 sanitizer 不再放行 `style`
+  属性（防覆盖层 UI 钓鱼）。③`markdown.ts`/`renderhtml.ts` 中的字面 NUL 字节改为 `\x00`
+  转义（语义等价），文件恢复纯文本可被文本审计工具扫描。④multer 2.4.0→2.5.0、body-parser
+  →1.20.9（audit high，钉子断言同步更新）。typecheck + build 通过；test:security 84 项中 79 过，
+  5 失败均为既有 Windows 环境差异（PATH-11/GIT-02/AUTH-06×2 在基线同样失败）。
 - 2026-10-08（修复容器健康检查）：健康检查地址由 `http://localhost:8787/healthz` 改为
   `http://127.0.0.1:8787/healthz`。容器内 `localhost` 解析为 IPv6 `::1`，而服务只监听 IPv4
   `0.0.0.0`，导致健康检查连接被拒、容器被标记 unhealthy（实际服务正常）。改 Dockerfile 与

@@ -12,6 +12,7 @@ import { CALLOUT_SLOT, CALLOUT_RE, calloutDefaultTitle, calloutIconSvg } from '.
 import { openLightbox } from './imageLightbox';
 import { VIDEO_EXT_RE, AUDIO_EXT_RE } from './media';
 import { transformWikiComponents } from './wikiComponents';
+import { sanitizeNoteHtml } from './noteHtml';
 import { t } from './i18n';
 
 /**
@@ -1220,26 +1221,6 @@ class BulletWidget extends WidgetType {
 
 // Strip scripts/handlers/dangerous URLs from raw note HTML before rendering it
 // inline (Obsidian renders embedded HTML, e.g. CKEditor/Trilium tables, the same).
-const HTML_DROP_TAGS = new Set(['script', 'style', 'iframe', 'object', 'embed', 'link', 'meta', 'base']);
-function sanitizeHtml(html: string): string {
-  const tpl = document.createElement('template');
-  tpl.innerHTML = html;
-  for (const el of Array.from(tpl.content.querySelectorAll('*'))) {
-    if (HTML_DROP_TAGS.has(el.tagName.toLowerCase())) {
-      el.remove();
-      continue;
-    }
-    for (const attr of Array.from(el.attributes)) {
-      const n = attr.name.toLowerCase();
-      if (n.startsWith('on')) el.removeAttribute(attr.name);
-      else if ((n === 'href' || n === 'src' || n === 'xlink:href') && /^\s*javascript:/i.test(attr.value)) {
-        el.removeAttribute(attr.name);
-      }
-    }
-  }
-  return tpl.innerHTML;
-}
-
 class HtmlBlockWidget extends WidgetType {
   constructor(readonly html: string) {
     super();
@@ -1252,7 +1233,7 @@ class HtmlBlockWidget extends WidgetType {
     div.className = 'cm-html-block';
     // 单块自定义组件（AppCards / flink 单标签）在 Live Preview 里也做静态转换；
     // 多行的 Gallery/flink 容器由 Reading 模式完整渲染。
-    div.innerHTML = sanitizeHtml(transformWikiComponents(this.html));
+    div.innerHTML = sanitizeNoteHtml(transformWikiComponents(this.html));
     div.addEventListener('mousedown', (e) => {
       const a = (e.target as HTMLElement).closest('a');
       if (!a) return;

@@ -15,7 +15,7 @@ test('KaTeX updated API: normal formula output and untrusted URL control',()=>{
 
 test('Patched production dependency resolutions include nested Mermaid KaTeX',()=>{
  const lock=JSON.parse(fs.readFileSync('package-lock.json','utf8')).packages;
- const required:Record<string,string>={'multer':'2.4.0','simple-git':'4.0.2','js-yaml':'4.3.2','proxy-addr':'2.0.8','qs':'6.16.1','dompurify':'3.4.17','katex':'0.19.0'};
+ const required:Record<string,string>={'multer':'2.5.0','simple-git':'4.0.2','js-yaml':'4.3.2','proxy-addr':'2.0.8','qs':'6.16.1','dompurify':'3.4.17','katex':'0.19.0'};
  for(const [name,version]of Object.entries(required)){
   const entries=Object.entries(lock).filter(([key])=>key.endsWith('/node_modules/'+name)||key==='node_modules/'+name);
   assert.ok(entries.length>0,name+' installed');

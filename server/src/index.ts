@@ -49,13 +49,13 @@ async function main() {
   await setPasswordIfInitial();
   await ensureVault();
 
-  // 公开编辑模式安全提醒：开启后访客免密进入，只能编辑指定目录并走 PR 投稿。
+  // 公开编辑模式安全提醒：开启后访客免密进入，读写都限制在指定目录并走 PR 投稿。
   const s = await getSettings();
   if (s.publicEditor.enabled) {
     console.warn(
       `\n  [安全提醒] 公开编辑模式已开启：访客免密进入编辑器，` +
-      `仅可编辑「${s.publicEditor.editableRoot || '(内容根)'}」并提交 PR。` +
-      `请确认 GitHub App 已配置、且该目录不含敏感内容。\n`,
+      `读写均限制在「${s.publicEditor.editableRoot || '(内容根)'}」（含其文件树/搜索/历史，` +
+      `另放行附件目录）并提交 PR。请确认 GitHub App 已配置、且整个内容根不含敏感内容。\n`,
     );
   }
 

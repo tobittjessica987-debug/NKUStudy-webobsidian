@@ -11,6 +11,8 @@
  * 不处理依赖外置数据文件或 Twikoo 的组件（XLSX 卡片、FoodCards）。
  */
 
+import { cardWidth, lineCount, galleryGap, galleryHeight } from './wikiLayout';
+
 const escapeHtml = (s: string): string =>
   s
     .replace(/&/g, '&amp;')
@@ -74,9 +76,9 @@ function renderAppCards(tag: string): string {
   const raw = attr(tag, 'links') ?? '';
   const items = parseAppCards(raw);
   if (!items.length) return '';
-  const width = attr(tag, 'width') ?? '12em';
-  const textLines = attr(tag, 'text-lines') ?? '2';
-  const descLines = attr(tag, 'desc-lines');
+  const width = cardWidth(attr(tag, 'width')) ?? '12em';
+  const textLines = lineCount(attr(tag, 'text-lines')) ?? '2';
+  const descLines = lineCount(attr(tag, 'desc-lines'));
   const cards = items
     .map((it) => {
       const link = safeLink(it.link);
@@ -90,16 +92,16 @@ function renderAppCards(tag: string): string {
       const body =
         it.text || it.desc
           ? `<span class="body">` +
-            `<span class="text-ellipsis content" style="--lines:${escapeHtml(textLines)}">${escapeHtml(it.text ?? '')}</span>` +
+            `<span class="text-ellipsis content" data-nku-lines="${textLines}">${escapeHtml(it.text ?? '')}</span>` +
             (it.desc
-              ? `<span class="text-ellipsis link-desc"${descLines ? ` style="--lines:${escapeHtml(descLines)}"` : ''}>${escapeHtml(it.desc)}</span>`
+              ? `<span class="text-ellipsis link-desc"${descLines ? ` data-nku-lines="${descLines}"` : ''}>${escapeHtml(it.desc)}</span>`
               : '') +
             `</span>`
           : '';
       return `<${tagName} class="link card"${href}${target}>${icon}${body}</${tagName}>`;
     })
     .join('');
-  return `<div class="app-cards" style="--col-width:${escapeHtml(width)}">${cards}</div>`;
+  return `<div class="app-cards" data-nku-card-width="${width}">${cards}</div>`;
 }
 
 /* ---------------- Flink ---------------- */
@@ -189,12 +191,11 @@ const MD_IMG_RE = /!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
  * `rawUrl` 用于把站内相对路径解析为可访问地址。
  */
 function renderGallery(tag: string, inner: string, rawUrl?: (p: string) => string): string {
-  const gap = Number(attr(tag, 'gap'));
-  const rowHeight = Number(attr(tag, 'row-height'));
-  const style =
-    (Number.isFinite(gap) ? `--gallery-gap:${gap}px;` : '') +
-    (Number.isFinite(rowHeight) ? `--gallery-row-height:${rowHeight}px;` : '');
-  const styleAttr = style ? ` style="${style}"` : '';
+  const gap = galleryGap(attr(tag, 'gap'));
+  const rowHeight = galleryHeight(attr(tag, 'row-height'));
+  const layoutAttrs =
+    (gap !== undefined ? ` data-nku-gallery-gap="${gap}"` : '') +
+    (rowHeight !== undefined ? ` data-nku-gallery-height="${rowHeight}"` : '');
 
   const imgs: string[] = [];
   let m: RegExpExecArray | null;
@@ -207,7 +208,7 @@ function renderGallery(tag: string, inner: string, rawUrl?: (p: string) => strin
     imgs.push(`<img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}" loading="lazy">`);
   }
   if (!imgs.length) return '';
-  return `<div class="qut-gallery" role="list"${styleAttr}>${imgs.join('')}</div>`;
+  return `<div class="qut-gallery" role="list"${layoutAttrs}>${imgs.join('')}</div>`;
 }
 
 /**

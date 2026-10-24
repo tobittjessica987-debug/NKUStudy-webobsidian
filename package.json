@@ -22,7 +22,8 @@
     "test:parser": "node --import tsx --test --test-concurrency=1 server/test/markdown.test.ts"
   },
   "devDependencies": {
-    "concurrently": "^9.1.0"
+    "concurrently": "^9.1.0",
+    "jsdom": "26.1.0"
   },
   "engines": {
     "node": ">=20"

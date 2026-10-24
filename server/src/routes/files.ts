@@ -13,7 +13,8 @@ import { onFileRenamed } from '../services/shares.js';
 import { mimeFor } from '../services/mime.js';
 import { sendFileWithRange } from '../services/httpfile.js';
 import { uploadImage, UploadError } from '../services/upload.js';
-import { assertGuestWritable } from '../services/guestpath.js';
+import { assertGuestWritable, isGuestReadable, assertGuestReadable } from '../services/guestpath.js';
+import type { TreeNode } from '../services/vault.js';
 import { receiveUpload, assertRasterImage } from '../services/uploadPolicy.js';
 
 export const filesRouter = Router();
@@ -33,6 +34,33 @@ const safeUploadName = (name: string): string => {
 
 // 访客（公开编辑）只能改动 publicEditor.editableRoot 下的路径；
 // 校验逻辑见 services/guestpath.ts（路径口径：相对内容根）。
+
+/** 递归裁剪文件树：文件保留可读项，文件夹自身可读或含可读后代时保留（包括空目录）。 */
+function filterTreeNodes(nodes: TreeNode[], readable: Set<string>): TreeNode[] {
+  const out: TreeNode[] = [];
+  for (const node of nodes) {
+    if (node.type === 'folder') {
+      const children = filterTreeNodes(node.children ?? [], readable);
+      if (readable.has(node.path) || children.length) out.push({ ...node, children });
+    } else if (readable.has(node.path)) {
+      out.push(node);
+    }
+  }
+  return out;
+}
+
+async function filterTreeForGuest(tree: TreeNode): Promise<TreeNode> {
+  // 逐节点判定（而非按前缀字符串匹配）：路径经 vault 解析锚定，防 ./ 别名绕过
+  const readable = new Set<string>();
+  const collect = async (nodes: TreeNode[]): Promise<void> => {
+    for (const node of nodes) {
+      if (await isGuestReadable(node.path)) readable.add(node.path);
+      if (node.type === 'folder') await collect(node.children ?? []);
+    }
+  };
+  await collect(tree.children ?? []);
+  return { ...tree, children: filterTreeNodes(tree.children ?? [], readable) };
+}
 
 /** 访客写操作守卫：仅 guest 受限，owner 不受限。 */
 function guestWriteGuard(req: Request, res: Response, next: NextFunction): void {
@@ -63,8 +91,15 @@ async function reindex(opts: { upsert?: string; added?: string; removed?: string
 
 filesRouter.get(
   '/',
-  asyncHandler(async (_req, res) => {
-    res.json(await vault.listTree());
+  asyncHandler(async (req, res) => {
+    const tree = await vault.listTree();
+    // 访客只见可读范围（editableRoot + 附件目录）内的子树：私有目录既不能读，
+    // 也不该出现在文件树里被人 enumerate
+    if (req.sessionRole === 'guest') {
+      res.json(await filterTreeForGuest(tree));
+      return;
+    }
+    res.json(tree);
   }),
 );
 
@@ -82,6 +117,15 @@ filesRouter.get(
     if (!(await vault.exists(rel))) {
       const resolved = resolveFile(rel);
       if (resolved) rel = resolved;
+    }
+    // 读权限守卫放在路径解析之后：按 basename 解析出来的嵌入目标也要按其真实路径判定
+    if (req.sessionRole === 'guest') {
+      try {
+        await assertGuestReadable(rel);
+      } catch (e) {
+        res.status((e as { status?: number })?.status ?? 403).json({ error: (e as Error).message });
+        return;
+      }
     }
     if (vault.isTextFile(rel)) {
       res.json({ path: rel, content: await vault.readFileText(rel), encoding: 'utf8' });
